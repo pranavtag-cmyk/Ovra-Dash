@@ -18,7 +18,8 @@ class Prefs(context: Context) {
     val clipMinutes get() = int("clip_minutes", 3)
     val storageGb get() = int("storage_gb", 30)
     val recordSound get() = sp.getBoolean("record_sound", true)
-    val cabinCamera get() = sp.getBoolean("cabin_camera", true)
+    /** road = back camera only, cabin = front camera only, both = road + cabin inset */
+    val cameraMode get() = str("camera_mode", "road")
     val useMph get() = str("speed_units", "mph") == "mph"
     val autoStart get() = sp.getBoolean("auto_start", true)
     val stopDelaySec get() = int("stop_delay", 60)

@@ -76,7 +76,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     @Volatile var alarmActive = false; private set
     @Volatile var sosSecondsLeft = 0; private set
     @Volatile var armingUntil = 0L; private set
-    val dualActive get() = camRig?.frontRunning == true
+    val dualActive get() = camRig?.insetRunning == true
     val recordingSince get() = recorder?.startedAt ?: 0L
     val eventRecording get() = eventRecorder != null
 
@@ -267,16 +267,14 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         r.rotationDegrees = videoRotation()
         r.frontRotationDegrees = r.rotationDegrees
         val rig = CameraRig(this) { err -> main.post { message = err; notifyUi() } }
-        val wantFront = prefs.cabinCamera
-        r.showFront = wantFront
+        val camMode = prefs.cameraMode
+        val wantInset = camMode == "both" && !CameraRig.dualFailed
+        r.showFront = wantInset
         r.motionListener = { rear, front -> main.post { onMotion(rear, front) } }
         renderer = r
         camRig = rig
         preview?.let { (st, pw, ph) -> r.setPreview(st, pw, ph) }
-        rig.start(r.cameraSurface, if (wantFront) r.frontSurface else null, lowPower)
-        if (wantFront && !rig.supportsDual()) {
-            message = "Trying cabin camera - this phone doesn't officially support two cameras at once"
-        }
+        rig.start(r.cameraSurface, if (wantInset) r.frontSurface else null, camMode == "cabin", lowPower)
         pushOverlay()
         return true
     }
@@ -472,8 +470,11 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     private fun onMotion(rear: Float, front: Float) {
         if (mode != Mode.GUARD || System.currentTimeMillis() < guardReadyAt) return
         val (roadT, cabinT, _) = guardThresholds()
-        roadHits = if (rear > roadT) roadHits + 1 else 0
-        cabinHits = if (front > cabinT) cabinHits + 1 else 0
+        val cabinOnly = prefs.cameraMode == "cabin"
+        val roadScore = if (cabinOnly) 0f else rear
+        val cabinScore = if (cabinOnly) rear else front
+        roadHits = if (roadScore > roadT) roadHits + 1 else 0
+        cabinHits = if (cabinScore > cabinT) cabinHits + 1 else 0
         if (cabinHits >= 2) { cabinHits = 0; guardEvent("Movement inside the car", alarm = true) }
         else if (roadHits >= 2) { roadHits = 0; if (prefs.guardRecordRoad) guardEvent("Movement outside", alarm = false) }
     }

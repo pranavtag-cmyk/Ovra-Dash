@@ -8,7 +8,8 @@
             app:entries="@array/clip_names" app:entryValues="@array/clip_values" app:useSimpleSummaryProvider="true" />
         <ListPreference app:key="storage_gb" app:title="Storage limit (oldest unsaved clips are deleted)" app:defaultValue="30"
             app:entries="@array/storage_names" app:entryValues="@array/storage_values" app:useSimpleSummaryProvider="true" />
-        <SwitchPreferenceCompat app:key="cabin_camera" app:title="Cabin camera inset" app:summary="Record the front camera in the corner of the video" app:defaultValue="true" />
+        <ListPreference app:key="camera_mode" app:title="Camera" app:defaultValue="road"
+            app:entries="@array/camera_names" app:entryValues="@array/camera_values" app:useSimpleSummaryProvider="true" />
         <Preference app:key="dual_info" app:title="Two cameras at once" app:selectable="false" />
         <SwitchPreferenceCompat app:key="record_sound" app:title="Record sound" app:defaultValue="true" />
         <ListPreference app:key="speed_units" app:title="Speed units" app:defaultValue="mph"

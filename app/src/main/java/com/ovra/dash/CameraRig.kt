@@ -15,34 +15,41 @@ import android.util.Log
 import android.util.Range
 import android.view.Surface
 
-/** Opens the road (back) camera and, when the phone allows it, the cabin (front) camera at the same time. */
-class CameraRig(context: Context, private val onError: (String) -> Unit) {
+/**
+ * Opens the main camera (road = back, or cabin = front) and, if asked and the phone copes,
+ * the other one as an inset. If running both crashes the camera system, it falls back to
+ * the main camera only and remembers that for the rest of the session.
+ */
+class CameraRig(context: Context, private val onMessage: (String) -> Unit) {
 
     private val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val thread = HandlerThread("ovra-cam").apply { start() }
     private val handler = Handler(thread.looper)
 
-    private class Cam(val id: String) {
+    private class Cam(val id: String, val surface: Surface, val isMain: Boolean) {
         var device: CameraDevice? = null
         var session: CameraCaptureSession? = null
-        var surface: Surface? = null
         var fps: Range<Int>? = null
         var stabilization = false
         var hasFlash = false
     }
 
-    private var rear: Cam? = null
-    private var front: Cam? = null
+    private var main: Cam? = null
+    private var inset: Cam? = null
     private var generation = 0
     @Volatile private var torch = false
     @Volatile private var lowPower = false
 
-    @Volatile var frontRunning = false; private set
-    @Volatile var rearSensorOrientation = 90; private set
-    @Volatile var frontSensorOrientation = 270; private set
+    // remembered so a restart doesn't trip over the same failure again
+    private var mainSurface: Surface? = null
+    private var insetSurface: Surface? = null
+    private var mainFront = false
+    private var mainRetries = 0
 
-    val rearId: String? get() = idFor(CameraCharacteristics.LENS_FACING_BACK)
-    val frontId: String? get() = idFor(CameraCharacteristics.LENS_FACING_FRONT)
+    @Volatile var insetRunning = false; private set
+
+    private val backId: String? get() = idFor(CameraCharacteristics.LENS_FACING_BACK)
+    private val frontId: String? get() = idFor(CameraCharacteristics.LENS_FACING_FRONT)
 
     private fun idFor(facing: Int): String? = try {
         manager.cameraIdList.firstOrNull { manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == facing }
@@ -50,7 +57,7 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
 
     /** True when Android reports that this phone can stream the back and front cameras together. */
     fun supportsDual(): Boolean {
-        val r = rearId ?: return false
+        val r = backId ?: return false
         val f = frontId ?: return false
         if (Build.VERSION.SDK_INT < 30) return false
         return try {
@@ -58,22 +65,44 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
         } catch (_: Exception) { false }
     }
 
-    /** lowPower = 15 fps (parking guard). */
-    fun start(rearSurface: Surface, frontSurface: Surface?, lowPower: Boolean) {
+    /** mainFront = record the front (selfie) camera full-frame. insetSurface = also run the other camera. */
+    fun start(mainSurface: Surface, insetSurface: Surface?, mainFront: Boolean, lowPower: Boolean) {
         handler.post {
-            stopInternal()
+            this.mainSurface = mainSurface
+            this.insetSurface = if (dualFailed) null else insetSurface
+            this.mainFront = mainFront
             this.lowPower = lowPower
-            val gen = ++generation
-            val r = rearId
-            if (r == null) { onError("No back camera found"); return@post }
-            rear = Cam(r).also { open(it, rearSurface, gen) }
-            rearSensorOrientation = sensorOrientation(r, 90)
-            val f = frontId
-            if (frontSurface != null && f != null) {
-                frontSensorOrientation = sensorOrientation(f, 270)
-                front = Cam(f).also { open(it, frontSurface, gen) }
-            }
+            mainRetries = 0
+            openAll()
         }
+    }
+
+    private fun openAll() {
+        stopInternal()
+        val gen = ++generation
+        val mainId = if (mainFront) frontId ?: backId else backId ?: frontId
+        val ms = mainSurface ?: return
+        if (mainId == null) { onMessage("No camera found"); return }
+        main = Cam(mainId, ms, true).also { open(it, gen) }
+        // the inset is opened once the main camera is running (see onConfigured)
+    }
+
+    private fun openInset(gen: Int) {
+        val s = insetSurface ?: return
+        if (dualFailed) return
+        val id = (if (mainFront) backId else frontId) ?: return
+        if (id == main?.id) return
+        inset = Cam(id, s, false).also { open(it, gen) }
+    }
+
+    /** Both cameras together didn't work: carry on with the main camera only. */
+    private fun fallBackToSingle() {
+        if (dualFailed) return
+        dualFailed = true
+        insetSurface = null
+        Log.w(TAG, "dual camera failed - main camera only")
+        onMessage("This phone can't run both cameras at once - recording one camera")
+        handler.postDelayed({ openAll() }, 800)
     }
 
     fun stop() = handler.post { stopInternal() }
@@ -85,21 +114,18 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
 
     fun setLowPower(on: Boolean) = handler.post {
         lowPower = on
-        rear?.let { apply(it) }
-        front?.let { apply(it) }
+        main?.let { apply(it) }
+        inset?.let { apply(it) }
     }
 
     fun setTorch(on: Boolean) = handler.post {
         torch = on
-        rear?.let { apply(it) }
+        main?.let { apply(it) }
+        inset?.let { apply(it) }
     }
 
-    private fun sensorOrientation(id: String, def: Int) = try {
-        manager.getCameraCharacteristics(id).get(CameraCharacteristics.SENSOR_ORIENTATION) ?: def
-    } catch (_: Exception) { def }
-
     @SuppressLint("MissingPermission")
-    private fun open(cam: Cam, surface: Surface, gen: Int) {
+    private fun open(cam: Cam, gen: Int) {
         try {
             val ch = manager.getCameraCharacteristics(cam.id)
             val ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: emptyArray()
@@ -107,7 +133,6 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
             val modes = ch.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES) ?: IntArray(0)
             cam.stabilization = modes.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON)
             cam.hasFlash = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-            cam.surface = surface
 
             manager.openCamera(cam.id, object : CameraDevice.StateCallback() {
                 override fun onOpened(device: CameraDevice) {
@@ -118,69 +143,71 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
                 override fun onDisconnected(device: CameraDevice) {
                     device.close()
                     cam.device = null
-                    if (cam === front) frontRunning = false
+                    if (gen == generation) onCameraFailed(cam, -1)
                 }
                 override fun onError(device: CameraDevice, error: Int) {
                     device.close()
                     cam.device = null
-                    if (cam === front) {
-                        frontRunning = false
-                        front = null
-                        Log.w(TAG, "front camera error $error - recording road only")
-                        onError("This phone won't run both cameras together - recording the road camera only")
-                    } else {
-                        onError("Camera error $error")
-                    }
+                    if (gen == generation) onCameraFailed(cam, error)
                 }
             }, handler)
         } catch (e: Exception) {
-            if (cam === front) {
-                front = null
-                onError("Cabin camera unavailable - recording the road camera only")
-            } else onError(e.message ?: "Camera failed")
+            if (gen == generation) onCameraFailed(cam, -2)
+        }
+    }
+
+    private fun onCameraFailed(cam: Cam, error: Int) {
+        Log.w(TAG, "camera ${cam.id} (main=${cam.isMain}) failed: $error")
+        if (!cam.isMain || inset != null) {
+            // anything going wrong while two cameras are open -> one camera from now on
+            fallBackToSingle()
+            return
+        }
+        if (mainRetries < 2) {
+            mainRetries++
+            handler.postDelayed({ openAll() }, 1500)
+        } else {
+            onMessage("Camera error $error - close other camera apps and try again")
         }
     }
 
     @Suppress("DEPRECATION")
     private fun createSession(cam: Cam, gen: Int) {
         val dev = cam.device ?: return
-        val s = cam.surface ?: return
         try {
-            dev.createCaptureSession(listOf(s), object : CameraCaptureSession.StateCallback() {
+            dev.createCaptureSession(listOf(cam.surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     if (gen != generation) { session.close(); return }
                     cam.session = session
-                    if (cam === front) frontRunning = true
                     apply(cam)
+                    if (cam.isMain) {
+                        mainRetries = 0
+                        handler.postDelayed({ if (gen == generation) openInset(gen) }, 700)
+                    } else insetRunning = true
                 }
                 override fun onConfigureFailed(session: CameraCaptureSession) {
-                    if (cam === front) {
-                        try { dev.close() } catch (_: Exception) {}
-                        front = null
-                        onError("This phone won't run both cameras together - recording the road camera only")
-                    } else onError("Camera setup failed")
+                    if (gen == generation) onCameraFailed(cam, -3)
                 }
             }, handler)
         } catch (e: Exception) {
-            onError(e.message ?: "Camera session failed")
+            if (gen == generation) onCameraFailed(cam, -4)
         }
     }
 
     private fun apply(cam: Cam) {
         val dev = cam.device ?: return
         val session = cam.session ?: return
-        val s = cam.surface ?: return
         try {
             val b = dev.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-            b.addTarget(s)
+            b.addTarget(cam.surface)
             b.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
             b.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
             val fps = if (lowPower) Range(10, 15) else cam.fps
             fps?.let { b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
-            if (cam.stabilization && cam === rear) {
+            if (cam.stabilization && cam.isMain) {
                 b.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON)
             }
-            if (cam === rear && cam.hasFlash) {
+            if (cam.hasFlash) {
                 b.set(CaptureRequest.FLASH_MODE, if (torch) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF)
             }
             session.setRepeatingRequest(b.build(), null, handler)
@@ -189,7 +216,7 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
             if (lowPower) {
                 try {
                     val b = dev.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-                    b.addTarget(s)
+                    b.addTarget(cam.surface)
                     b.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
                     session.setRepeatingRequest(b.build(), null, handler)
                 } catch (_: Exception) {}
@@ -200,14 +227,18 @@ class CameraRig(context: Context, private val onError: (String) -> Unit) {
 
     private fun stopInternal() {
         generation++
-        for (c in listOfNotNull(rear, front)) {
+        for (c in listOfNotNull(inset, main)) {
             try { c.session?.close() } catch (_: Exception) {}
             try { c.device?.close() } catch (_: Exception) {}
         }
-        rear = null
-        front = null
-        frontRunning = false
+        main = null
+        inset = null
+        insetRunning = false
     }
 
-    companion object { private const val TAG = "OvraCamRig" }
+    companion object {
+        private const val TAG = "OvraCamRig"
+        /** Set once both cameras together have failed on this phone (until the app restarts). */
+        @Volatile var dualFailed = false
+    }
 }
