@@ -24,6 +24,14 @@
             app:entries="@array/dark_names" app:entryValues="@array/dark_values" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Sentry mode (warning light)">
+        <SwitchPreferenceCompat app:key="sentry_auto" app:title="Switch on when parked" app:summary="After you unplug and stop driving. Separate from security - works even with security off." app:defaultValue="true" />
+        <ListPreference app:key="sentry_brightness" app:title="Light brightness" app:defaultValue="medium"
+            app:entries="@array/sens_names" app:entryValues="@array/sens_values" app:useSimpleSummaryProvider="true" />
+        <ListPreference app:key="sentry_min_battery" app:title="Switch off below battery" app:defaultValue="20"
+            app:entries="@array/battery_names" app:entryValues="@array/battery_values" app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Auto start">
         <SwitchPreferenceCompat app:key="auto_start" app:title="Record when charging starts" app:summary="Plug into the car charger and recording starts by itself" app:defaultValue="true" />
         <ListPreference app:key="stop_delay" app:title="Stop after unplugging" app:defaultValue="60"

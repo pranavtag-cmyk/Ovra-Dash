@@ -17,6 +17,11 @@ Turns an Android phone (built for the realme X2 Pro) into a dashcam and parking 
 - Movement inside the car, bumps/knocks, or the phone being moved → records, loud siren and flashing light, optional alert text
 - PIN or fingerprint needed to turn the guard off or silence the alarm
 
+## Sentry mode
+- A warning light for when the car is parked: black screen with a red light that double-flashes every 2 seconds, like a car alarm LED
+- Its own button and settings, completely separate from security (works with security off)
+- Switches on after parking (optional) and off on low battery
+
 ## Security
 - PIN / fingerprint for clips, deleting/unsaving clips, settings and the guard
 - Clips are private to the app (not in the gallery); export or share from the Clips screen

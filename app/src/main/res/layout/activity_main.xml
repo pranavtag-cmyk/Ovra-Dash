@@ -67,6 +67,7 @@
 
         <Button android:id="@+id/btnSave" style="@style/SideButton" android:layout_marginTop="14dp" android:text="Save clip" />
         <Button android:id="@+id/btnGuard" style="@style/SideButton" android:text="Parking guard" />
+        <Button android:id="@+id/btnSentry" style="@style/SideButton" android:text="Sentry: OFF" />
         <Button android:id="@+id/btnSecurity" style="@style/SideButton" android:text="Security: ON" />
         <Button android:id="@+id/btnDark" style="@style/SideButton" android:text="Screen off" />
         <Button android:id="@+id/btnClips" style="@style/SideButton" android:text="Clips" />

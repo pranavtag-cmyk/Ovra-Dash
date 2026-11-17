@@ -41,6 +41,14 @@ class Prefs(context: Context) {
     val guardMinBattery get() = int("guard_min_battery", 20)
     val guardTexts get() = securityEnabled && sp.getBoolean("guard_texts", false)
 
+    // sentry mode - the parked warning light. Completely separate from security.
+    var sentryOn: Boolean
+        get() = sp.getBoolean("sentry_on", false)
+        set(v) { sp.edit().putBoolean("sentry_on", v).apply() }
+    val sentryAuto get() = sp.getBoolean("sentry_auto", true)
+    val sentryMinBattery get() = int("sentry_min_battery", 20)
+    val sentryBrightness get() = when (str("sentry_brightness", "medium")) { "low" -> 0.15f; "high" -> 0.7f; else -> 0.35f }
+
     // security - master switch: off = no parking guard, alarm, alert texts or PIN locks
     var securityEnabled: Boolean
         get() = sp.getBoolean("security_enabled", true)

@@ -54,12 +54,12 @@ class MainActivity : AppCompatActivity() {
     private var dark = false
     private var lastTouch = System.currentTimeMillis()
     private var dotStyle = ""
+    private var lastSentryBatteryCheck = 0L
     private val ui = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         prefs = Prefs(this)
         store = ClipStore(this)
 
@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnDark).setOnClickListener { enterDark() }
         darkOverlay.setOnClickListener { exitDark() }
         btnSecurity.setOnClickListener { toggleSecurity() }
+        findViewById<Button>(R.id.btnSentry).setOnClickListener { toggleSentry() }
 
         btnRecord.setOnClickListener {
             val s = DashService.instance
@@ -192,9 +193,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyDarkBrightness() {
-        val guard = DashService.instance?.mode.let { it == DashService.Mode.GUARD || it == DashService.Mode.ARMING }
-        // a little brighter in parking mode so the warning light is visible from outside
-        window.attributes = window.attributes.apply { screenBrightness = if (guard) 0.35f else 0.05f }
+        // brighter for the Sentry / alarm light so it can be seen from outside the car
+        val bright = dotStyle == "sentry" || dotStyle == "alarm"
+        window.attributes = window.attributes.apply { screenBrightness = if (bright) prefs.sentryBrightness else 0.05f }
+    }
+
+    private fun updateKeepScreenOn(mode: DashService.Mode) {
+        val keep = mode != DashService.Mode.STANDBY || prefs.sentryOn
+        if (keep) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    // ---------------- sentry mode ----------------
+
+    private fun toggleSentry() {
+        prefs.sentryOn = !prefs.sentryOn
+        if (prefs.sentryOn) {
+            lastTouch = System.currentTimeMillis()
+            android.widget.Toast.makeText(this, "Sentry mode on - the screen goes dark in a few seconds and the warning light starts", android.widget.Toast.LENGTH_LONG).show()
+        }
+        dotStyle = ""
+        refresh()
+    }
+
+    private fun batteryLowForSentry(): Boolean {
+        val bm = getSystemService(BATTERY_SERVICE) as android.os.BatteryManager
+        val pct = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        return !bm.isCharging && pct in 0 until prefs.sentryMinBattery
     }
 
     /** Puts the light next to the camera notch (recording) or in that corner (parking guard). */
@@ -214,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        if (style != "rec") {
+        if (style != "rec" && style != "none") {
             cx = if (onRight) w - 30 * d else 30 * d
             cy = 30 * d
         }
@@ -235,16 +260,16 @@ class MainActivity : AppCompatActivity() {
             val t = System.currentTimeMillis()
             val style = when {
                 s?.alarmActive == true -> "alarm"
-                mode == DashService.Mode.GUARD || mode == DashService.Mode.ARMING -> "guard"
                 mode == DashService.Mode.DRIVING -> "rec"
+                prefs.sentryOn -> "sentry"
                 else -> "none"
             }
             if (style != dotStyle) { dotStyle = style; placeDot(style); applyDarkBrightness() }
             when (style) {
                 // recording: slow, steady blink like a camera's REC light
                 "rec" -> { statusDot.visibility = if (t % 1600 < 800) View.VISIBLE else View.INVISIBLE; flashLayer.visibility = View.INVISIBLE }
-                // parking guard: short double flash every 2 s, like a car alarm LED
-                "guard" -> {
+                // Sentry mode: short double flash every 2 s, like a car alarm LED
+                "sentry" -> {
                     val p = t % 2000
                     statusDot.visibility = if (p < 110 || p in 260..370) View.VISIBLE else View.INVISIBLE
                     flashLayer.visibility = View.INVISIBLE
@@ -341,9 +366,23 @@ class MainActivity : AppCompatActivity() {
         btnGuard.isEnabled = secOn
         btnGuard.alpha = if (secOn) 1f else 0.4f
 
-        // go dark by itself while recording or guarding, after a while without touches
+        // Sentry mode (separate from security): turns itself off on low battery
+        if (prefs.sentryOn && mode != DashService.Mode.DRIVING && now - lastSentryBatteryCheck > 60_000) {
+            lastSentryBatteryCheck = now
+            if (batteryLowForSentry()) {
+                prefs.sentryOn = false
+                android.widget.Toast.makeText(this, "Sentry mode off - battery below ${prefs.sentryMinBattery}%", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+        val sentryBtn = findViewById<Button>(R.id.btnSentry)
+        sentryBtn.text = if (prefs.sentryOn) "Sentry: ON" else "Sentry: OFF"
+        sentryBtn.setTextColor(if (prefs.sentryOn) 0xFFFF6B6B.toInt() else 0xFFFFFFFF.toInt())
+        updateKeepScreenOn(mode)
+
+        // go dark by itself while recording, guarding or in Sentry mode, after a while without touches
         val delay = prefs.darkAfterSec
-        if (!dark && delay > 0 && mode != DashService.Mode.STANDBY && alertPanel.visibility != View.VISIBLE &&
+        val active = mode != DashService.Mode.STANDBY || prefs.sentryOn
+        if (!dark && delay > 0 && active && alertPanel.visibility != View.VISIBLE &&
             now - lastTouch > delay * 1000L) enterDark()
 
         val sp = s?.speedMps

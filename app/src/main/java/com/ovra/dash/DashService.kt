@@ -336,6 +336,8 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         currentClip = null
         releaseWake()
         stopLocation()
+        // parked: switch on the Sentry light (independent of security / parking guard)
+        if (toGuard && prefs.sentryAuto) prefs.sentryOn = true
         if (toGuard && prefs.guardAuto) armGuard(prefs.guardArmDelaySec) else updateNotification()
         notifyUi()
     }
