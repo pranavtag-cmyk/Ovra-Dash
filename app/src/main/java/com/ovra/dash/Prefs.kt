@@ -32,16 +32,20 @@ class Prefs(context: Context) {
     val contactNumber get() = str("contact_number", "").trim()
 
     // parking guard
-    val guardAuto get() = sp.getBoolean("guard_auto", true)
+    val guardAuto get() = securityEnabled && sp.getBoolean("guard_auto", true)
     val guardArmDelaySec get() = int("guard_arm_delay", 120)
     val guardSiren get() = sp.getBoolean("guard_siren", true)
     val guardSirenOnBump get() = sp.getBoolean("guard_siren_bump", true)
     val guardRecordRoad get() = sp.getBoolean("guard_record_road", true)
     val guardSensitivity get() = str("guard_sensitivity", "medium")
     val guardMinBattery get() = int("guard_min_battery", 20)
-    val guardTexts get() = sp.getBoolean("guard_texts", false)
+    val guardTexts get() = securityEnabled && sp.getBoolean("guard_texts", false)
 
-    // security
+    // security - master switch: off = no parking guard, alarm, alert texts or PIN locks
+    var securityEnabled: Boolean
+        get() = sp.getBoolean("security_enabled", true)
+        set(v) { sp.edit().putBoolean("security_enabled", v).apply() }
+    val darkAfterSec get() = int("dark_after", 15)   // 0 = never
     val pinSet get() = sp.getString("pin_hash", null) != null
     val useFingerprint get() = sp.getBoolean("use_fingerprint", true)
     val lockClips get() = sp.getBoolean("lock_clips", true)

@@ -16,7 +16,7 @@ object Security {
     /** Runs [onOk] after the user proves it's them. With no PIN set, runs straight away. */
     fun require(activity: AppCompatActivity, reason: String, rememberMinutes: Int = 0, onOk: () -> Unit) {
         val prefs = Prefs(activity)
-        if (!prefs.pinSet) { onOk(); return }
+        if (!prefs.pinSet || !prefs.securityEnabled) { onOk(); return }
         if (rememberMinutes > 0 && System.currentTimeMillis() < unlockedUntil) { onOk(); return }
         val done = {
             if (rememberMinutes > 0) unlockedUntil = System.currentTimeMillis() + rememberMinutes * 60_000L

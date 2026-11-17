@@ -58,6 +58,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     private lateinit var store: ClipStore
     private lateinit var sensors: SensorManager
     private lateinit var siren: Siren
+    private lateinit var places: Places
     private var camRig: CameraRig? = null
     private var renderer: GlRenderer? = null
     private var recorder: SegmentRecorder? = null       // driving
@@ -70,6 +71,8 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     @Volatile var mode = Mode.STANDBY; private set
     @Volatile var location: Location? = null; private set
     @Volatile var speedMps: Float? = null; private set
+    @Volatile var roadName: String? = null; private set
+    @Volatile var areaName: String? = null; private set
     @Volatile var currentClip: File? = null; private set
     @Volatile var lastEvent: String = ""; private set
     @Volatile var message: String = ""; private set
@@ -110,6 +113,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         store = ClipStore(this)
         sensors = getSystemService(SENSOR_SERVICE) as SensorManager
         siren = Siren(this)
+        places = Places(this) { road, area -> main.post { roadName = road; areaName = area; notifyUi() } }
         createChannels()
         startInForeground()
         val filter = IntentFilter().apply {
@@ -146,6 +150,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         stopLocation()
         stopPipeline()
         siren.stop()
+        places.shutdown()
         releaseWake()
         super.onDestroy()
     }
@@ -403,6 +408,10 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     // ---------------- parking guard ----------------
 
     fun armGuard(delaySec: Int) {
+        if (!prefs.securityEnabled) {
+            lastEvent = "Security is off - parking guard unavailable"
+            notifyUi(); return
+        }
         if (mode == Mode.DRIVING) stopDriving(toGuard = false)
         cancelArm()
         if (delaySec <= 0) { startGuard(); return }
@@ -452,6 +461,18 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         stopLocation()
     }
 
+    /** Master switch from the app. Off = guard, alarm and alert texts stop straight away. */
+    fun setSecurity(on: Boolean) {
+        prefs.securityEnabled = on
+        if (!on) {
+            silenceAlarm()
+            disarmGuard()
+            lastEvent = "Security switched off"
+        } else lastEvent = "Security switched on"
+        updateNotification()
+        notifyUi()
+    }
+
     fun disarmGuard() {
         cancelArm()
         if (mode == Mode.GUARD) stopGuardInternal()
@@ -485,7 +506,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         // record (or extend) an event clip: at least 45 s, at most 3 min
         eventUntil = now + 45_000
         if (eventRecorder == null) startEventRecording()
-        if (alarm && prefs.guardSiren) startAlarm()
+        if (alarm && prefs.guardSiren && prefs.securityEnabled) startAlarm()
         if (prefs.guardTexts && now - lastTextAt > 10 * 60_000L) {
             lastTextAt = now
             io.execute {
@@ -626,9 +647,11 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
             prev != null && loc.time > prev.time -> loc.distanceTo(prev) / ((loc.time - prev.time) / 1000f)
             else -> null
         }
+        places.update(loc)
         gpsLog?.let {
             try {
-                it.write("${loc.time},${loc.latitude},${loc.longitude},${speedMps ?: ""},${if (loc.hasBearing()) loc.bearing else ""}\n")
+                val place = listOfNotNull(roadName, areaName).joinToString(" - ").replace("\"", "'")
+                it.write("${loc.time},${loc.latitude},${loc.longitude},${speedMps ?: ""},${if (loc.hasBearing()) loc.bearing else ""},\"$place\"\n")
                 it.flush()
             } catch (_: Exception) {}
         }
@@ -642,7 +665,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     private fun openGpsLog(clip: File) {
         closeGpsLog()
         try {
-            gpsLog = FileWriter(store.sidecar(clip)).apply { write("time_ms,lat,lng,speed_mps,bearing\n") }
+            gpsLog = FileWriter(store.sidecar(clip)).apply { write("time_ms,lat,lng,speed_mps,bearing,place\n") }
         } catch (_: Exception) {}
     }
 
@@ -706,7 +729,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
             currentClip?.let { store.isLocked(it) } == true -> "SAVED"
             else -> null
         }
-        r.setOverlay(Overlay.draw(videoW, videoH, speedMps, prefs.useMph, location?.latitude, location?.longitude, tag))
+        r.setOverlay(Overlay.draw(videoW, videoH, speedMps, prefs.useMph, location?.latitude, location?.longitude, roadName, areaName, tag))
     }
 
     private var tickCount = 0

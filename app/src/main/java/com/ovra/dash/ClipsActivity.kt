@@ -112,6 +112,13 @@ class ClipsActivity : AppCompatActivity() {
             val tags = listOfNotNull(kind, if (store.isLocked(f)) "Saved" else null, if (live) "Recording now" else null,
                 String.format(Locale.UK, "%.0f MB", f.length() / 1e6))
             h.sub.text = tags.joinToString("  ·  ")
+            h.sub.tag = f.absolutePath
+            thumbs.execute {
+                val place = placeOf(f)
+                if (place != null) runOnUiThread {
+                    if (h.sub.tag == f.absolutePath) h.sub.text = place + "\n" + tags.joinToString("  ·  ")
+                }
+            }
             h.title.setTextColor(if (store.isLocked(f)) 0xFFFFD666.toInt() else 0xFFFFFFFF.toInt())
             h.thumb.setImageBitmap(null)
             h.thumb.tag = f.absolutePath
@@ -129,6 +136,16 @@ class ClipsActivity : AppCompatActivity() {
             h.itemView.setOnLongClickListener { if (!live) actions(f); true }
         }
     }
+
+    /** First road/place name recorded in the clip's GPS log. */
+    private fun placeOf(f: File): String? = try {
+        store.sidecar(f).takeIf { it.exists() }?.bufferedReader()?.useLines { lines ->
+            lines.drop(1).mapNotNull { line ->
+                val q = line.indexOf('"')
+                if (q < 0) null else line.substring(q + 1).trimEnd('"').takeIf { it.isNotBlank() }
+            }.firstOrNull()
+        }
+    } catch (_: Exception) { null }
 
     private fun actions(f: File) {
         val locked = store.isLocked(f)

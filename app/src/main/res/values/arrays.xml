@@ -20,4 +20,6 @@
     <string-array name="battery_values"><item>10</item><item>20</item><item>30</item><item>50</item></string-array>
     <string-array name="camera_names"><item>Back camera (faces the road when the screen faces you)</item><item>Front / selfie camera (faces the cabin)</item><item>Both - road + cabin inset (if the phone allows)</item></string-array>
     <string-array name="camera_values"><item>road</item><item>cabin</item><item>both</item></string-array>
+    <string-array name="dark_names"><item>10 seconds</item><item>15 seconds</item><item>30 seconds</item><item>1 minute</item><item>Never</item></string-array>
+    <string-array name="dark_values"><item>10</item><item>15</item><item>30</item><item>60</item><item>0</item></string-array>
 </resources>

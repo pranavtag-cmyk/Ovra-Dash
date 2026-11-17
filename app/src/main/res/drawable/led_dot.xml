@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- red LED with a soft glow -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <gradient android:type="radial" android:gradientRadius="50%p"
+        android:startColor="#FFFF2A1F" android:centerColor="#FFE0140C" android:endColor="#00E0140C" />
+</shape>

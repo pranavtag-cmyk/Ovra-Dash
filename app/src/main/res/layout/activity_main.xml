@@ -40,20 +40,26 @@
     </LinearLayout>
 
     <!-- right controls -->
-    <LinearLayout
+    <ScrollView
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="end"
+        android:layout_marginTop="50dp"
+        android:fillViewport="true"
+        android:scrollbars="none">
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingEnd="16dp"
-        android:paddingTop="56dp"
-        android:paddingBottom="16dp">
+        android:paddingEnd="14dp"
+        android:paddingBottom="12dp">
 
         <Button
             android:id="@+id/btnRecord"
-            android:layout_width="84dp"
-            android:layout_height="84dp"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
             android:background="@drawable/rec_bg"
             android:text="REC"
             android:textColor="#FFFFFF"
@@ -61,9 +67,12 @@
 
         <Button android:id="@+id/btnSave" style="@style/SideButton" android:layout_marginTop="14dp" android:text="Save clip" />
         <Button android:id="@+id/btnGuard" style="@style/SideButton" android:text="Parking guard" />
+        <Button android:id="@+id/btnSecurity" style="@style/SideButton" android:text="Security: ON" />
+        <Button android:id="@+id/btnDark" style="@style/SideButton" android:text="Screen off" />
         <Button android:id="@+id/btnClips" style="@style/SideButton" android:text="Clips" />
         <Button android:id="@+id/btnSettings" style="@style/SideButton" android:text="Settings" />
     </LinearLayout>
+    </ScrollView>
 
     <TextView
         android:id="@+id/messageText"
@@ -81,6 +90,30 @@
         android:text="Coded by Pranav Tagadpallewar"
         android:textColor="#66FFFFFF"
         android:textSize="10sp" />
+
+    <!-- dark screen: AMOLED black (pixels off) with just a status light; tap to wake -->
+    <FrameLayout
+        android:id="@+id/darkOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <View
+            android:id="@+id/flashLayer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#B0FF1A10"
+            android:visibility="invisible" />
+
+        <View
+            android:id="@+id/statusDot"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/rec_dot" />
+    </FrameLayout>
 
     <!-- alarm / SOS panel -->
     <LinearLayout

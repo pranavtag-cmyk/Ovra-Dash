@@ -18,6 +18,12 @@
             app:entries="@array/orientation_names" app:entryValues="@array/orientation_values" app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Screen">
+        <ListPreference app:key="dark_after" app:title="Screen goes dark after" app:defaultValue="15"
+            app:summary="While recording or guarding: black screen with just a blinking light. Tap to wake."
+            app:entries="@array/dark_names" app:entryValues="@array/dark_values" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Auto start">
         <SwitchPreferenceCompat app:key="auto_start" app:title="Record when charging starts" app:summary="Plug into the car charger and recording starts by itself" app:defaultValue="true" />
         <ListPreference app:key="stop_delay" app:title="Stop after unplugging" app:defaultValue="60"
@@ -46,6 +52,7 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Security">
+        <SwitchPreferenceCompat app:key="security_enabled" app:title="Security features" app:summary="Master switch for parking guard, alarm, alert texts and PIN locks (also on the main screen)" app:defaultValue="true" app:enabled="false" />
         <Preference app:key="pin" app:title="PIN" />
         <SwitchPreferenceCompat app:key="use_fingerprint" app:title="Allow fingerprint" app:defaultValue="true" />
         <SwitchPreferenceCompat app:key="lock_clips" app:title="Ask for PIN to view clips" app:defaultValue="true" />

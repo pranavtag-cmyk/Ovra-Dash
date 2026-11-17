@@ -9,8 +9,11 @@ import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.MotionEvent
 import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
@@ -43,6 +46,16 @@ class MainActivity : AppCompatActivity() {
     private var storageText = ""
     private var lastStorageCheck = 0L
 
+    // dark screen
+    private lateinit var darkOverlay: View
+    private lateinit var statusDot: View
+    private lateinit var flashLayer: View
+    private lateinit var btnSecurity: Button
+    private var dark = false
+    private var lastTouch = System.currentTimeMillis()
+    private var dotStyle = ""
+    private val ui = Handler(Looper.getMainLooper())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -64,6 +77,20 @@ class MainActivity : AppCompatActivity() {
         alertTitle = findViewById(R.id.alertTitle)
         alertText = findViewById(R.id.alertText)
         alertButton = findViewById(R.id.alertButton)
+        darkOverlay = findViewById(R.id.darkOverlay)
+        statusDot = findViewById(R.id.statusDot)
+        flashLayer = findViewById(R.id.flashLayer)
+        btnSecurity = findViewById(R.id.btnSecurity)
+
+        if (Build.VERSION.SDK_INT >= 28) {
+            // draw right up to the camera notch so the status light can sit next to the lens
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        findViewById<Button>(R.id.btnDark).setOnClickListener { enterDark() }
+        darkOverlay.setOnClickListener { exitDark() }
+        btnSecurity.setOnClickListener { toggleSecurity() }
 
         btnRecord.setOnClickListener {
             val s = DashService.instance
@@ -120,13 +147,137 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         hideBars()
+        lastTouch = System.currentTimeMillis()
         DashService.uiListener = { refresh() }
         refresh()
+        ui.post(blinker)
     }
 
     override fun onPause() {
         super.onPause()
         DashService.uiListener = null
+        ui.removeCallbacks(blinker)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        lastTouch = System.currentTimeMillis()
+        if (dark) {
+            if (ev.action == MotionEvent.ACTION_UP) exitDark()
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    // ---------------- dark screen ----------------
+    // The X2 Pro has an AMOLED screen: black pixels are switched off, so a black screen with one
+    // small light looks (and costs) like a switched-off screen.
+
+    private fun enterDark() {
+        if (dark) return
+        dark = true
+        darkOverlay.visibility = View.VISIBLE
+        DashService.setPreview(null, 0, 0)   // stop drawing the preview while dark
+        dotStyle = ""
+        applyDarkBrightness()
+    }
+
+    private fun exitDark() {
+        if (!dark) return
+        dark = false
+        lastTouch = System.currentTimeMillis()
+        darkOverlay.visibility = View.GONE
+        flashLayer.visibility = View.INVISIBLE
+        window.attributes = window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
+        preview.surfaceTexture?.let { DashService.setPreview(it, preview.width, preview.height) }
+    }
+
+    private fun applyDarkBrightness() {
+        val guard = DashService.instance?.mode.let { it == DashService.Mode.GUARD || it == DashService.Mode.ARMING }
+        // a little brighter in parking mode so the warning light is visible from outside
+        window.attributes = window.attributes.apply { screenBrightness = if (guard) 0.35f else 0.05f }
+    }
+
+    /** Puts the light next to the camera notch (recording) or in that corner (parking guard). */
+    private fun placeDot(style: String) {
+        val d = resources.displayMetrics.density
+        val size = ((if (style == "rec") 9 else 18) * d).toInt()
+        val root = findViewById<View>(R.id.root)
+        val w = root.width.toFloat(); val h = root.height.toFloat()
+        var cx = 28 * d; var cy = 28 * d
+        var onRight = false
+        if (Build.VERSION.SDK_INT >= 28) {
+            root.rootWindowInsets?.displayCutout?.boundingRects?.firstOrNull()?.let { r ->
+                onRight = r.centerX() > w / 2
+                if (style == "rec") {
+                    cy = r.centerY().toFloat()
+                    cx = if (onRight) r.left - 12 * d else r.right + 12 * d
+                }
+            }
+        }
+        if (style != "rec") {
+            cx = if (onRight) w - 30 * d else 30 * d
+            cy = 30 * d
+        }
+        // nudge a little every few minutes so the same pixels aren't always lit
+        val shift = ((System.currentTimeMillis() / 180_000) % 3 - 1) * 2 * d
+        statusDot.layoutParams = (statusDot.layoutParams as FrameLayout.LayoutParams).apply { width = size; height = size }
+        statusDot.x = cx - size / 2f + shift
+        statusDot.y = cy - size / 2f + shift
+        statusDot.setBackgroundResource(if (style == "rec") R.drawable.rec_dot else R.drawable.led_dot)
+    }
+
+    private val blinker = object : Runnable {
+        override fun run() {
+            ui.postDelayed(this, 60)
+            if (!dark) return
+            val s = DashService.instance
+            val mode = s?.mode ?: DashService.Mode.STANDBY
+            val t = System.currentTimeMillis()
+            val style = when {
+                s?.alarmActive == true -> "alarm"
+                mode == DashService.Mode.GUARD || mode == DashService.Mode.ARMING -> "guard"
+                mode == DashService.Mode.DRIVING -> "rec"
+                else -> "none"
+            }
+            if (style != dotStyle) { dotStyle = style; placeDot(style); applyDarkBrightness() }
+            when (style) {
+                // recording: slow, steady blink like a camera's REC light
+                "rec" -> { statusDot.visibility = if (t % 1600 < 800) View.VISIBLE else View.INVISIBLE; flashLayer.visibility = View.INVISIBLE }
+                // parking guard: short double flash every 2 s, like a car alarm LED
+                "guard" -> {
+                    val p = t % 2000
+                    statusDot.visibility = if (p < 110 || p in 260..370) View.VISIBLE else View.INVISIBLE
+                    flashLayer.visibility = View.INVISIBLE
+                }
+                // alarm going off: fast flashing light and red screen flashes
+                "alarm" -> {
+                    val on = t % 300 < 150
+                    statusDot.visibility = if (on) View.VISIBLE else View.INVISIBLE
+                    flashLayer.visibility = if (on) View.VISIBLE else View.INVISIBLE
+                }
+                else -> { statusDot.visibility = View.INVISIBLE; flashLayer.visibility = View.INVISIBLE }
+            }
+        }
+    }
+
+    // ---------------- security switch ----------------
+
+    private fun toggleSecurity() {
+        if (prefs.securityEnabled) {
+            Security.require(this, "Turn off security") {
+                AlertDialog.Builder(this)
+                    .setTitle("Turn off security?")
+                    .setMessage("Parking guard, the alarm, alert texts and PIN locks will all be off until you turn security back on. Crash detection keeps working.")
+                    .setPositiveButton("Turn off") { _, _ -> setSecurity(false) }
+                    .setNegativeButton("Cancel", null).show()
+            }
+        } else setSecurity(true)
+    }
+
+    private fun setSecurity(on: Boolean) {
+        val s = DashService.instance
+        if (s != null) s.setSecurity(on) else prefs.securityEnabled = on
+        refresh()
     }
 
     @Suppress("DEPRECATION")
@@ -184,6 +335,16 @@ class MainActivity : AppCompatActivity() {
         btnSave.isEnabled = mode == DashService.Mode.DRIVING
         btnSave.alpha = if (btnSave.isEnabled) 1f else 0.4f
         btnGuard.text = if (mode == DashService.Mode.GUARD || mode == DashService.Mode.ARMING) "Guard: ON" else "Parking guard"
+        val secOn = prefs.securityEnabled
+        btnSecurity.text = if (secOn) "Security: ON" else "Security: OFF"
+        btnSecurity.setTextColor(if (secOn) 0xFF3DDC97.toInt() else 0xFFFFB547.toInt())
+        btnGuard.isEnabled = secOn
+        btnGuard.alpha = if (secOn) 1f else 0.4f
+
+        // go dark by itself while recording or guarding, after a while without touches
+        val delay = prefs.darkAfterSec
+        if (!dark && delay > 0 && mode != DashService.Mode.STANDBY && alertPanel.visibility != View.VISIBLE &&
+            now - lastTouch > delay * 1000L) enterDark()
 
         val sp = s?.speedMps
         speedChip.text = if (sp == null) "-- ${if (prefs.useMph) "mph" else "km/h"}"
