@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <TextureView
+        android:id="@+id/preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center" />
+
+    <TextView
+        android:id="@+id/idleText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="Ready\nPlug into the car charger or press Record"
+        android:textColor="#9EA3B2"
+        android:textSize="16sp" />
+
+    <!-- top bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <TextView style="@style/Chip" android:text="Ovra Dash" android:textStyle="bold" />
+        <TextView android:id="@+id/modeChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="STANDBY" />
+        <TextView android:id="@+id/speedChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="-- mph" android:textColor="#FFD666" />
+        <TextView android:id="@+id/gpsChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="GPS" />
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <TextView android:id="@+id/storageChip" style="@style/Chip" android:text="" />
+    </LinearLayout>
+
+    <!-- right controls -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingEnd="16dp"
+        android:paddingTop="56dp"
+        android:paddingBottom="16dp">
+
+        <Button
+            android:id="@+id/btnRecord"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
+            android:background="@drawable/rec_bg"
+            android:text="REC"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+
+        <Button android:id="@+id/btnSave" style="@style/SideButton" android:layout_marginTop="14dp" android:text="Save clip" />
+        <Button android:id="@+id/btnGuard" style="@style/SideButton" android:text="Parking guard" />
+        <Button android:id="@+id/btnClips" style="@style/SideButton" android:text="Clips" />
+        <Button android:id="@+id/btnSettings" style="@style/SideButton" android:text="Settings" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/messageText"
+        style="@style/Chip"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="12dp"
+        android:maxWidth="520dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="6dp"
+        android:text="Coded by Pranav Tagadpallewar"
+        android:textColor="#66FFFFFF"
+        android:textSize="10sp" />
+
+    <!-- alarm / SOS panel -->
+    <LinearLayout
+        android:id="@+id/alertPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/panel_red"
+        android:gravity="center"
+        android:minWidth="360dp"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/alertTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/alertText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/alertButton"
+            style="@style/SideButton"
+            android:layout_width="wrap_content"
+            android:layout_marginTop="16dp"
+            android:paddingHorizontal="28dp" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="quality_names"><item>720p (coolest, smallest)</item><item>1080p (recommended)</item><item>4K (sharpest, hottest)</item></string-array>
+    <string-array name="quality_values"><item>720p</item><item>1080p</item><item>4k</item></string-array>
+    <string-array name="clip_names"><item>1 minute</item><item>3 minutes</item><item>5 minutes</item></string-array>
+    <string-array name="clip_values"><item>1</item><item>3</item><item>5</item></string-array>
+    <string-array name="storage_names"><item>10 GB</item><item>20 GB</item><item>30 GB</item><item>50 GB</item><item>80 GB</item></string-array>
+    <string-array name="storage_values"><item>10</item><item>20</item><item>30</item><item>50</item><item>80</item></string-array>
+    <string-array name="unit_names"><item>mph</item><item>km/h</item></string-array>
+    <string-array name="unit_values"><item>mph</item><item>kmh</item></string-array>
+    <string-array name="orientation_names"><item>Automatic</item><item>Landscape</item><item>Landscape (upside down)</item></string-array>
+    <string-array name="orientation_values"><item>auto</item><item>landscape</item><item>landscape_flipped</item></string-array>
+    <string-array name="delay_names"><item>Straight away</item><item>30 seconds</item><item>1 minute</item><item>3 minutes</item></string-array>
+    <string-array name="delay_values"><item>3</item><item>30</item><item>60</item><item>180</item></string-array>
+    <string-array name="sens_names"><item>Low</item><item>Medium</item><item>High</item></string-array>
+    <string-array name="sens_values"><item>low</item><item>medium</item><item>high</item></string-array>
+    <string-array name="arm_names"><item>1 minute</item><item>2 minutes</item><item>5 minutes</item></string-array>
+    <string-array name="arm_values"><item>60</item><item>120</item><item>300</item></string-array>
+    <string-array name="battery_names"><item>10%</item><item>20%</item><item>30%</item><item>50%</item></string-array>
+    <string-array name="battery_values"><item>10</item><item>20</item><item>30</item><item>50</item></string-array>
+</resources>

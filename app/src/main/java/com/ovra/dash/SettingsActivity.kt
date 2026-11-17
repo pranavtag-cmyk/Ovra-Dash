@@ -1,0 +1,60 @@
+package com.ovra.dash
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.preference.Preference
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
+
+class SettingsActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        title = "Ovra Dash settings"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction().replace(android.R.id.content, Fragment()).commit()
+        }
+    }
+
+    override fun onSupportNavigateUp(): Boolean { finish(); return true }
+
+    class Fragment : PreferenceFragmentCompat() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.settings, rootKey)
+            val prefs = Prefs(requireContext())
+
+            fun needSms(enabled: Boolean) {
+                if (enabled && ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.SEND_SMS), 2)
+                }
+            }
+            findPreference<SwitchPreferenceCompat>("sos_enabled")?.setOnPreferenceChangeListener { _, v -> needSms(v as Boolean); true }
+            findPreference<SwitchPreferenceCompat>("guard_texts")?.setOnPreferenceChangeListener { _, v -> needSms(v as Boolean); true }
+
+            val pinPref = findPreference<Preference>("pin")!!
+            fun updatePin() { pinPref.summary = if (prefs.pinSet) "PIN is set - tap to change or remove" else "Not set - anyone can open clips and turn off the guard" }
+            updatePin()
+            pinPref.setOnPreferenceClickListener {
+                val act = requireActivity() as AppCompatActivity
+                if (prefs.pinSet) {
+                    androidx.appcompat.app.AlertDialog.Builder(act).setTitle("PIN")
+                        .setItems(arrayOf("Change PIN", "Remove PIN")) { _, w ->
+                            if (w == 0) Security.setNewPin(act) { updatePin() }
+                            else Security.require(act, "Remove PIN") { prefs.clearPin(); updatePin(); Toast.makeText(act, "PIN removed", Toast.LENGTH_SHORT).show() }
+                        }.show()
+                } else Security.setNewPin(act) { updatePin() }
+                true
+            }
+
+            findPreference<Preference>("about")?.summary = "Version ${requireContext().packageManager.getPackageInfo(requireContext().packageName, 0).versionName} · Coded by Pranav Tagadpallewar"
+            findPreference<Preference>("dual_info")?.summary =
+                if (CameraRig(requireContext()) {}.let { val d = it.supportsDual(); it.release(); d }) "This phone reports it can run both cameras together"
+                else "This phone doesn't officially report dual-camera support - Ovra Dash will still try, and fall back to the road camera"
+        }
+    }
+}

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Recording">
+        <ListPreference app:key="quality" app:title="Video quality" app:defaultValue="1080p"
+            app:entries="@array/quality_names" app:entryValues="@array/quality_values" app:useSimpleSummaryProvider="true" />
+        <ListPreference app:key="clip_minutes" app:title="Clip length" app:defaultValue="3"
+            app:entries="@array/clip_names" app:entryValues="@array/clip_values" app:useSimpleSummaryProvider="true" />
+        <ListPreference app:key="storage_gb" app:title="Storage limit (oldest unsaved clips are deleted)" app:defaultValue="30"
+            app:entries="@array/storage_names" app:entryValues="@array/storage_values" app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat app:key="cabin_camera" app:title="Cabin camera inset" app:summary="Record the front camera in the corner of the video" app:defaultValue="true" />
+        <Preference app:key="dual_info" app:title="Two cameras at once" app:selectable="false" />
+        <SwitchPreferenceCompat app:key="record_sound" app:title="Record sound" app:defaultValue="true" />
+        <ListPreference app:key="speed_units" app:title="Speed units" app:defaultValue="mph"
+            app:entries="@array/unit_names" app:entryValues="@array/unit_values" app:useSimpleSummaryProvider="true" />
+        <ListPreference app:key="orientation" app:title="Video orientation" app:defaultValue="auto"
+            app:entries="@array/orientation_names" app:entryValues="@array/orientation_values" app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Auto start">
+        <SwitchPreferenceCompat app:key="auto_start" app:title="Record when charging starts" app:summary="Plug into the car charger and recording starts by itself" app:defaultValue="true" />
+        <ListPreference app:key="stop_delay" app:title="Stop after unplugging" app:defaultValue="60"
+            app:entries="@array/delay_names" app:entryValues="@array/delay_values" app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Crash detection">
+        <ListPreference app:key="crash_sensitivity" app:title="Sensitivity" app:defaultValue="medium"
+            app:entries="@array/sens_names" app:entryValues="@array/sens_values" app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat app:key="sos_enabled" app:title="Crash SOS text" app:summary="After a big impact, text your location to your contact (30 s to cancel)" app:defaultValue="false" />
+        <EditTextPreference app:key="contact_number" app:title="Emergency / alert contact number" app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Parking guard (car alarm)">
+        <SwitchPreferenceCompat app:key="guard_auto" app:title="Switch on after parking" app:summary="Arms automatically after you unplug and stop driving" app:defaultValue="true" />
+        <ListPreference app:key="guard_arm_delay" app:title="Delay before arming" app:defaultValue="120"
+            app:entries="@array/arm_names" app:entryValues="@array/arm_values" app:useSimpleSummaryProvider="true" />
+        <ListPreference app:key="guard_sensitivity" app:title="Sensitivity" app:defaultValue="medium"
+            app:entries="@array/sens_names" app:entryValues="@array/sens_values" app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat app:key="guard_siren" app:title="Siren and flashing light" app:summary="For movement inside the car or the phone being moved" app:defaultValue="true" />
+        <SwitchPreferenceCompat app:key="guard_siren_bump" app:title="Siren on bumps and knocks" app:defaultValue="true" />
+        <SwitchPreferenceCompat app:key="guard_record_road" app:title="Record movement outside" app:summary="People or cars passing the windscreen (recording only, no siren)" app:defaultValue="true" />
+        <SwitchPreferenceCompat app:key="guard_texts" app:title="Text me when the alarm goes off" app:summary="Sent to the contact above, at most every 10 minutes" app:defaultValue="false" />
+        <ListPreference app:key="guard_min_battery" app:title="Stop guarding below battery" app:defaultValue="20"
+            app:entries="@array/battery_names" app:entryValues="@array/battery_values" app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Security">
+        <Preference app:key="pin" app:title="PIN" />
+        <SwitchPreferenceCompat app:key="use_fingerprint" app:title="Allow fingerprint" app:defaultValue="true" />
+        <SwitchPreferenceCompat app:key="lock_clips" app:title="Ask for PIN to view clips" app:defaultValue="true" />
+    </PreferenceCategory>
+
+    <Preference app:key="about" app:title="Ovra Dash" app:selectable="false" />
+</PreferenceScreen>
