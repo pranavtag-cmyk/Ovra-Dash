@@ -23,6 +23,7 @@ class SegmentRecorder(
     interface Listener {
         fun onClipStarted(file: File)
         fun onClipFinished(file: File)
+        fun onRecorderError(info: String) {}
     }
 
     private var recorder: MediaRecorder? = null
@@ -65,6 +66,7 @@ class SegmentRecorder(
                         mr.setNextOutputFile(next)
                     }
                     MediaRecorder.MEDIA_RECORDER_INFO_NEXT_OUTPUT_FILE_STARTED -> {
+                        DiagLog.log("REC: next clip ${pendingNext?.name} (previous ${current?.name}, ${current?.length()?.div(1_000_000)} MB)")
                         val done = current
                         current = pendingNext
                         pendingNext = null
@@ -77,13 +79,18 @@ class SegmentRecorder(
                 Log.w(TAG, "segment switch failed: ${e.message}")
             }
         }
-        r.setOnErrorListener { _, what, extra -> Log.e(TAG, "recorder error $what/$extra") }
+        r.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "recorder error $what/$extra")
+            DiagLog.log("REC: recorder error what=$what extra=$extra")
+            listener.onRecorderError("$what/$extra")
+        }
         r.prepare()
         surface = r.surface
         r.start()
         recorder = r
         current = first
         startedAt = System.currentTimeMillis()
+        DiagLog.log("REC: started ${first.name} ${width}x$height ${bitrate / 1_000_000} Mbps audio=$audio")
         listener.onClipStarted(first)
         return r.surface
     }
@@ -99,8 +106,12 @@ class SegmentRecorder(
     fun stop() {
         val r = recorder ?: return
         recorder = null
-        try { r.stop() } catch (e: Exception) {
+        try {
+            r.stop()
+            DiagLog.log("REC: stopped ${current?.name} (${current?.length()?.div(1_000_000)} MB)")
+        } catch (e: Exception) {
             // stop() throws if almost nothing was recorded - drop that clip
+            DiagLog.log("REC: stop failed for ${current?.name}: ${e.message} (${current?.length()} bytes)")
             current?.let { if (it.length() < 1024) store.delete(it) }
         }
         try { r.release() } catch (_: Exception) {}

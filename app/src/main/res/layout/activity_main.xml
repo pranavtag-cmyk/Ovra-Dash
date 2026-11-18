@@ -41,6 +41,7 @@
             android:orientation="horizontal">
 
             <TextView android:id="@+id/modeChip" style="@style/GlassChip" android:text="STANDBY" android:textStyle="bold" android:fontFamily="monospace" />
+            <TextView android:id="@+id/securityChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:drawableStart="@drawable/ic_lock_small" android:text="Security ON" android:textColor="#3DDC97" />
             <TextView android:id="@+id/qualityChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="1080p" />
             <TextView android:id="@+id/gpsChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="No GPS" />
             <TextView android:id="@+id/storageChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="" />

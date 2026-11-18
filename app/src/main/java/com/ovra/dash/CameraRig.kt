@@ -158,6 +158,7 @@ class CameraRig(context: Context, private val onMessage: (String) -> Unit) {
 
     private fun onCameraFailed(cam: Cam, error: Int) {
         Log.w(TAG, "camera ${cam.id} (main=${cam.isMain}) failed: $error")
+        DiagLog.log("CAM: camera ${cam.id} (main=${cam.isMain}) failed: $error")
         if (!cam.isMain || inset != null) {
             // anything going wrong while two cameras are open -> one camera from now on
             fallBackToSingle()
@@ -179,6 +180,7 @@ class CameraRig(context: Context, private val onMessage: (String) -> Unit) {
                 override fun onConfigured(session: CameraCaptureSession) {
                     if (gen != generation) { session.close(); return }
                     cam.session = session
+                    DiagLog.log("CAM: camera ${cam.id} running (main=${cam.isMain}, lowPower=$lowPower)")
                     apply(cam)
                     if (cam.isMain) {
                         mainRetries = 0

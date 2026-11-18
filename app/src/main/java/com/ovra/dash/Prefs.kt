@@ -56,7 +56,7 @@ class Prefs(context: Context) {
     // security - master switch: off = no parking guard, alarm, alert texts or PIN locks
     var securityEnabled: Boolean
         get() = sp.getBoolean("security_enabled", true)
-        set(v) { sp.edit().putBoolean("security_enabled", v).apply() }
+        set(v) { sp.edit().putBoolean("security_enabled", v).commit() }
     val darkAfterSec get() = int("dark_after", 15)   // 0 = never
     val pinSet get() = sp.getString("pin_hash", null) != null
     val useFingerprint get() = sp.getBoolean("use_fingerprint", true)

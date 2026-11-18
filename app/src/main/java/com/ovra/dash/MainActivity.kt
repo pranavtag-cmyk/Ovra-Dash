@@ -32,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var idleText: TextView
     private lateinit var modeChip: TextView
     private lateinit var qualityChip: TextView
+    private lateinit var securityChip: TextView
     private lateinit var placeRoad: TextView
     private lateinit var placeArea: TextView
     private lateinit var gpsChip: TextView
@@ -70,6 +71,8 @@ class MainActivity : AppCompatActivity() {
         idleText = findViewById(R.id.idleText)
         modeChip = findViewById(R.id.modeChip)
         qualityChip = findViewById(R.id.qualityChip)
+        securityChip = findViewById(R.id.securityChip)
+        securityChip.setOnClickListener { toggleSecurity() }
         placeRoad = findViewById(R.id.placeRoad)
         placeArea = findViewById(R.id.placeArea)
         gpsChip = findViewById(R.id.gpsChip)
@@ -309,6 +312,14 @@ class MainActivity : AppCompatActivity() {
                     .setPositiveButton("Turn off") { _, _ -> setSecurity(false) }
                     .setNegativeButton("Cancel", null).show()
             }
+        } else if (!prefs.pinSet) {
+            // security without a PIN would let anyone switch it off
+            AlertDialog.Builder(this)
+                .setTitle("Set a PIN first")
+                .setMessage("A PIN (or your fingerprint) stops someone else turning off the alarm or deleting clips.")
+                .setPositiveButton("Set PIN") { _, _ -> Security.setNewPin(this) { ok -> if (ok) setSecurity(true) } }
+                .setNegativeButton("Skip") { _, _ -> setSecurity(true) }
+                .show()
         } else setSecurity(true)
     }
 
@@ -368,7 +379,8 @@ class MainActivity : AppCompatActivity() {
         setDockState(btnGuard, guardOn)
         val secOn = prefs.securityEnabled
         setDockState(btnSecurity, secOn)
-        btnSecurity.text = if (secOn) "Security" else "Sec. off"
+        securityChip.text = if (secOn) "Security ON" else "Security OFF"
+        securityChip.setTextColor(if (secOn) 0xFF3DDC97.toInt() else 0xFFFFB547.toInt())
         btnGuard.isEnabled = secOn
         btnGuard.alpha = if (secOn) 1f else 0.4f
 

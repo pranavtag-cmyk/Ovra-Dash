@@ -67,10 +67,15 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Security">
-        <SwitchPreferenceCompat app:key="security_enabled" app:title="Security features" app:summary="Master switch for parking guard, alarm, alert texts and PIN locks (also on the main screen)" app:defaultValue="true" app:enabled="false" />
+        <SwitchPreferenceCompat app:key="security_enabled" app:title="Security features" app:summary="Master switch for parking guard, alarm, alert texts and PIN locks (also on the main screen). Turning it off needs your PIN." app:defaultValue="true" />
+        <Preference app:key="test_alarm" app:title="Test the alarm" app:summary="5 seconds of siren and flashing light" />
         <Preference app:key="pin" app:title="PIN" />
         <SwitchPreferenceCompat app:key="use_fingerprint" app:title="Allow fingerprint" app:defaultValue="true" />
         <SwitchPreferenceCompat app:key="lock_clips" app:title="Ask for PIN to view clips" app:defaultValue="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Help">
+        <Preference app:key="share_log" app:title="Share diagnostics log" app:summary="Send this to Claude if recording or alarms misbehave" />
     </PreferenceCategory>
 
     <Preference app:key="about" app:title="Ovra Dash" app:selectable="false" />

@@ -71,7 +71,11 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
     private val stMatrix = FloatArray(16)
     private val texMatrix = FloatArray(16)
     private val identity = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
-    @Volatile var rotationDegrees = 0          // extra clockwise rotation applied to the camera image
+    @Volatile var rotationDegrees = 0
+    @Volatile var framesEncoded = 0L      // frames handed to the video recorder (watchdog)
+    @Volatile var framesFromCamera = 0L
+    @Volatile var swapErrors = 0L
+    private var lastPts = 0L          // extra clockwise rotation applied to the camera image
 
     private var pendingOverlay: Bitmap? = null
     private var overlayHeightFraction = 0.07f
@@ -98,6 +102,7 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
         }
         if (surface != null && surface.isValid) {
             encoderEgl = EGL14.eglCreateWindowSurface(display, config, surface, intArrayOf(EGL14.EGL_NONE), 0)
+            DiagLog.log("GL: encoder surface " + if (encoderEgl == EGL14.EGL_NO_SURFACE) "FAILED err=${EGL14.eglGetError()}" else "ready")
         }
     }
 
@@ -219,8 +224,13 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
         try {
             EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)
             cameraTexture.updateTexImage()
+            framesFromCamera++
             cameraTexture.getTransformMatrix(stMatrix)
-            val ts = cameraTexture.timestamp
+            // One clock for video and audio. Camera timestamps on many phones count time asleep
+            // (a different clock from the audio), which makes recordings stutter or drift.
+            var ts = System.nanoTime()
+            if (ts <= lastPts) ts = lastPts + 1_000
+            lastPts = ts
 
             pendingOverlay?.let { bmp ->
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, overlayTex)
@@ -259,7 +269,8 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
                 EGL14.eglMakeCurrent(display, encoderEgl, encoderEgl, context)
                 drawScene(videoWidth, videoHeight, preview = false)
                 EGLExt.eglPresentationTimeANDROID(display, encoderEgl, ts)
-                EGL14.eglSwapBuffers(display, encoderEgl)
+                if (EGL14.eglSwapBuffers(display, encoderEgl)) framesEncoded++
+                else swapErrors++
             }
             if (previewEgl != EGL14.EGL_NO_SURFACE) {
                 EGL14.eglMakeCurrent(display, previewEgl, previewEgl, context)

@@ -58,6 +58,35 @@ class SettingsActivity : AppCompatActivity() {
                 true
             }
 
+            findPreference<SwitchPreferenceCompat>("security_enabled")?.setOnPreferenceChangeListener { pref, v ->
+                val on = v as Boolean
+                val act = requireActivity() as AppCompatActivity
+                fun apply() {
+                    val svc = DashService.instance
+                    if (svc != null) svc.setSecurity(on) else prefs.securityEnabled = on
+                    (pref as SwitchPreferenceCompat).isChecked = on
+                }
+                if (!on) Security.require(act, "Turn off security") { apply() } else apply()
+                false   // we set it ourselves once the PIN check passes
+            }
+            findPreference<Preference>("test_alarm")?.setOnPreferenceClickListener {
+                val svc = DashService.instance
+                if (svc != null) svc.testAlarm()
+                else Toast.makeText(requireContext(), "Open the main screen once first", Toast.LENGTH_SHORT).show()
+                true
+            }
+            findPreference<Preference>("share_log")?.setOnPreferenceClickListener {
+                val f = DiagLog.file(requireContext())
+                if (!f.exists()) f.writeText("(empty)\n")
+                val uri = androidx.core.content.FileProvider.getUriForFile(requireContext(), requireContext().packageName + ".files", f)
+                startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }, "Share diagnostics log"))
+                true
+            }
+
             findPreference<Preference>("welcome_preview")?.setOnPreferenceClickListener {
                 startActivity(android.content.Intent(requireContext(), WelcomeActivity::class.java)); true
             }

@@ -84,6 +84,10 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     val eventRecording get() = eventRecorder != null
 
     private var previousClip: File? = null
+    private var lastFrameCount = -1L
+    private var lastFrameProgressAt = 0L
+    private var restarts = 0
+    private val restartTimes = ArrayDeque<Long>()
     private var lockNext = false
     private var lastCrashAt = 0L
     private var gpsLog: FileWriter? = null
@@ -110,6 +114,8 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     override fun onCreate() {
         super.onCreate()
         instance = this
+        DiagLog.init(this)
+        DiagLog.log("SERVICE: started")
         prefs = Prefs(this)
         store = ClipStore(this)
         sensors = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -323,6 +329,9 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         mode = Mode.DRIVING
         lastEvent = ""
         message = ""
+        lastFrameCount = -1L
+        lastFrameProgressAt = System.currentTimeMillis()
+        DiagLog.log("MODE: driving (quality ${prefs.quality}, camera ${prefs.cameraMode}, rotation ${renderer?.rotationDegrees})")
         startLocation()
         acquireWake()
         updateNotification()
@@ -331,6 +340,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
 
     fun stopDriving(toGuard: Boolean) {
         if (mode != Mode.DRIVING) return
+        DiagLog.log("MODE: driving stopped (toGuard=$toGuard)")
         stopPipeline()
         closeGpsLog()
         mode = Mode.STANDBY
@@ -354,6 +364,32 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         val limit = prefs.storageGb.toLong() * 1_000_000_000L
         io.execute { store.enforce(limit, keep) }
         notifyUi()
+    }
+
+    override fun onRecorderError(info: String) {
+        main.post {
+            if (mode == Mode.DRIVING) restartRecording("recorder error $info")
+        }
+    }
+
+    /** Stop and start again - used when the camera or recorder stalls. */
+    private fun restartRecording(reason: String) {
+        val now = System.currentTimeMillis()
+        while (restartTimes.isNotEmpty() && now - restartTimes.first() > 5 * 60_000) restartTimes.removeFirst()
+        if (restartTimes.size >= 4) {
+            DiagLog.log("WATCHDOG: giving up after repeated failures ($reason)")
+            message = "Recording keeps failing - open the app, then Settings > Share diagnostics log"
+            stopDriving(toGuard = false)
+            alertNotification("Ovra Dash stopped recording", "The camera keeps failing. Open the app for details.", null)
+            return
+        }
+        restartTimes.addLast(now)
+        restarts++
+        DiagLog.log("WATCHDOG: restarting recording ($reason), restart #$restarts")
+        message = "Recording restarted ($reason)"
+        stopPipeline()
+        mode = Mode.STANDBY
+        main.postDelayed({ startDriving() }, 1500)
     }
 
     override fun onClipFinished(file: File) {
@@ -433,6 +469,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
 
     private fun startGuard() {
         armRunnable = null
+        DiagLog.log("MODE: parking guard starting")
         if (batteryPercent() in 0 until prefs.guardMinBattery && !isCharging()) {
             mode = Mode.STANDBY
             lastEvent = "Guard not started - battery below ${prefs.guardMinBattery}%"
@@ -467,11 +504,16 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     /** Master switch from the app. Off = guard, alarm and alert texts stop straight away. */
     fun setSecurity(on: Boolean) {
         prefs.securityEnabled = on
+        DiagLog.log("SECURITY: switched ${if (on) "on" else "off"}")
         if (!on) {
             silenceAlarm()
             disarmGuard()
             lastEvent = "Security switched off"
-        } else lastEvent = "Security switched on"
+        } else {
+            lastEvent = "Security switched on"
+            // parked (not recording a drive): start watching the car
+            if (mode == Mode.STANDBY && prefs.guardAuto) armGuard(prefs.guardArmDelaySec)
+        }
         updateNotification()
         notifyUi()
     }
@@ -505,6 +547,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
 
     private fun guardEvent(what: String, alarm: Boolean) {
         val now = System.currentTimeMillis()
+        DiagLog.log("GUARD: $what (alarm=$alarm, siren=${prefs.guardSiren}, security=${prefs.securityEnabled})")
         lastEvent = "$what · ${timeNow()}"
         // record (or extend) an event clip: at least 45 s, at most 3 min
         eventUntil = now + 45_000
@@ -563,6 +606,27 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
             strobeOn = !strobeOn
             camRig?.setTorch(strobeOn)
             main.postDelayed(this, 400)
+        }
+    }
+
+    /** Settings > Test alarm: 5 s of siren and flashing light, to check it works. */
+    fun testAlarm() {
+        DiagLog.log("TEST: alarm test")
+        siren.start(5)
+        val usingCamera = camRig != null
+        if (usingCamera) {
+            alarmActive = true
+            main.post(strobe)
+        } else {
+            // camera closed: flash the torch directly
+            val cm = getSystemService(CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val id = try {
+                cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
+            } catch (_: Exception) { null }
+            if (id != null) {
+                for (i in 0 until 12) main.postDelayed({ try { cm.setTorchMode(id, i % 2 == 0) } catch (_: Exception) {} }, i * 400L)
+                main.postDelayed({ try { cm.setTorchMode(id, false) } catch (_: Exception) {} }, 12 * 400L + 50)
+            }
         }
     }
 
@@ -770,6 +834,16 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         override fun run() {
             tickCount++
             if (renderer != null) pushOverlay()
+            if (mode == Mode.DRIVING) {
+                val n = renderer?.framesEncoded ?: 0L
+                val now = System.currentTimeMillis()
+                if (n != lastFrameCount) { lastFrameCount = n; lastFrameProgressAt = now }
+                else if (now - lastFrameProgressAt > 8_000) {
+                    lastFrameProgressAt = now
+                    restartRecording("no video for 8 s - camera frames ${renderer?.framesFromCamera}, swap errors ${renderer?.swapErrors}")
+                }
+                if (tickCount % 60 == 0) DiagLog.log("REC: ${renderer?.framesEncoded} frames so far, clip ${currentClip?.name} ${currentClip?.length()?.div(1_000_000)} MB")
+            }
             if (mode == Mode.GUARD) {
                 val now = System.currentTimeMillis()
                 if (eventRecorder != null && (now > eventUntil || now - eventStartedAt > 180_000)) stopEventRecording()
