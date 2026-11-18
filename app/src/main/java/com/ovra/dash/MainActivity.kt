@@ -18,6 +18,7 @@ import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -30,11 +31,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var preview: TextureView
     private lateinit var idleText: TextView
     private lateinit var modeChip: TextView
-    private lateinit var speedChip: TextView
+    private lateinit var qualityChip: TextView
+    private lateinit var placeRoad: TextView
+    private lateinit var placeArea: TextView
     private lateinit var gpsChip: TextView
     private lateinit var storageChip: TextView
     private lateinit var messageText: TextView
-    private lateinit var btnRecord: Button
+    private lateinit var btnRecord: ImageButton
     private lateinit var btnSave: Button
     private lateinit var btnGuard: Button
     private lateinit var alertPanel: View
@@ -66,7 +69,9 @@ class MainActivity : AppCompatActivity() {
         preview = findViewById(R.id.preview)
         idleText = findViewById(R.id.idleText)
         modeChip = findViewById(R.id.modeChip)
-        speedChip = findViewById(R.id.speedChip)
+        qualityChip = findViewById(R.id.qualityChip)
+        placeRoad = findViewById(R.id.placeRoad)
+        placeArea = findViewById(R.id.placeArea)
         gpsChip = findViewById(R.id.gpsChip)
         storageChip = findViewById(R.id.storageChip)
         messageText = findViewById(R.id.messageText)
@@ -125,7 +130,6 @@ class MainActivity : AppCompatActivity() {
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean { DashService.setPreview(null, 0, 0); return true }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
         }
-        findViewById<View>(R.id.root).addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fitPreview() }
 
         requestPermissionsIfNeeded()
         handleIntent(intent)
@@ -285,6 +289,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setRecordButton(recording: Boolean) {
+        btnRecord.setImageResource(if (recording) R.drawable.rec_inner_stop else R.drawable.rec_inner_dot)
+        btnRecord.contentDescription = if (recording) "Stop recording" else "Start recording"
+    }
+
+    private fun setDockState(b: Button, on: Boolean) {
+        b.setBackgroundResource(if (on) R.drawable.glass_btn_on else R.drawable.glass_btn)
+    }
+
     // ---------------- security switch ----------------
 
     private fun toggleSecurity() {
@@ -311,16 +324,6 @@ class MainActivity : AppCompatActivity() {
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
     }
 
-    private fun fitPreview() {
-        val root = findViewById<View>(R.id.root)
-        val w = root.width; val h = root.height
-        if (w == 0 || h == 0) return
-        var pw = w; var ph = w * 9 / 16
-        if (ph > h) { ph = h; pw = h * 16 / 9 }
-        val lp = preview.layoutParams as FrameLayout.LayoutParams
-        if (lp.width != pw || lp.height != ph) { lp.width = pw; lp.height = ph; preview.layoutParams = lp }
-    }
-
     @SuppressLint("SetTextI18n")
     private fun refresh() {
         val s = DashService.instance
@@ -330,39 +333,42 @@ class MainActivity : AppCompatActivity() {
         when (mode) {
             DashService.Mode.DRIVING -> {
                 val secs = ((now - (s?.recordingSince ?: now)) / 1000).coerceAtLeast(0)
-                modeChip.text = "● REC " + String.format(Locale.UK, "%02d:%02d", secs / 60, secs % 60) + (if (s?.dualActive == true) " · 2 cams" else "")
-                modeChip.setTextColor(0xFFFF5A4E.toInt())
-                btnRecord.text = "STOP"
+                val hh = secs / 3600
+                modeChip.text = "● " + if (hh > 0) String.format(Locale.UK, "%d:%02d:%02d", hh, (secs / 60) % 60, secs % 60)
+                else String.format(Locale.UK, "%02d:%02d", secs / 60, secs % 60)
+                modeChip.setTextColor(0xFFFF6B61.toInt())
+                setRecordButton(true)
                 idleText.visibility = View.GONE
             }
             DashService.Mode.GUARD -> {
                 modeChip.text = if (s?.alarmActive == true) "ALARM" else if (s?.eventRecording == true) "● GUARD REC" else "GUARD ON"
                 modeChip.setTextColor(0xFF3DDC97.toInt())
-                btnRecord.text = "REC"
+                setRecordButton(false)
                 idleText.visibility = View.GONE
             }
             DashService.Mode.ARMING -> {
                 val left = ((s?.armingUntil ?: now) - now) / 1000
                 modeChip.text = "GUARD IN ${left.coerceAtLeast(0)}s"
                 modeChip.setTextColor(0xFFFFB547.toInt())
-                btnRecord.text = "REC"
+                setRecordButton(false)
                 idleText.visibility = View.VISIBLE
                 idleText.text = "Parking guard switches on in ${left.coerceAtLeast(0)} s"
             }
             DashService.Mode.STANDBY -> {
                 modeChip.text = "STANDBY"
                 modeChip.setTextColor(0xFFC9CCD6.toInt())
-                btnRecord.text = "REC"
+                setRecordButton(false)
                 idleText.visibility = View.VISIBLE
                 idleText.text = if (prefs.autoStart) "Ready\nRecording starts when the car charger is plugged in" else "Ready\nPress REC to start"
             }
         }
         btnSave.isEnabled = mode == DashService.Mode.DRIVING
         btnSave.alpha = if (btnSave.isEnabled) 1f else 0.4f
-        btnGuard.text = if (mode == DashService.Mode.GUARD || mode == DashService.Mode.ARMING) "Guard: ON" else "Parking guard"
+        val guardOn = mode == DashService.Mode.GUARD || mode == DashService.Mode.ARMING
+        setDockState(btnGuard, guardOn)
         val secOn = prefs.securityEnabled
-        btnSecurity.text = if (secOn) "Security: ON" else "Security: OFF"
-        btnSecurity.setTextColor(if (secOn) 0xFF3DDC97.toInt() else 0xFFFFB547.toInt())
+        setDockState(btnSecurity, secOn)
+        btnSecurity.text = if (secOn) "Security" else "Sec. off"
         btnGuard.isEnabled = secOn
         btnGuard.alpha = if (secOn) 1f else 0.4f
 
@@ -374,9 +380,7 @@ class MainActivity : AppCompatActivity() {
                 android.widget.Toast.makeText(this, "Sentry mode off - battery below ${prefs.sentryMinBattery}%", android.widget.Toast.LENGTH_LONG).show()
             }
         }
-        val sentryBtn = findViewById<Button>(R.id.btnSentry)
-        sentryBtn.text = if (prefs.sentryOn) "Sentry: ON" else "Sentry: OFF"
-        sentryBtn.setTextColor(if (prefs.sentryOn) 0xFFFF6B6B.toInt() else 0xFFFFFFFF.toInt())
+        setDockState(findViewById(R.id.btnSentry), prefs.sentryOn)
         updateKeepScreenOn(mode)
 
         // go dark by itself while recording, guarding or in Sentry mode, after a while without touches
@@ -385,17 +389,21 @@ class MainActivity : AppCompatActivity() {
         if (!dark && delay > 0 && active && alertPanel.visibility != View.VISIBLE &&
             now - lastTouch > delay * 1000L) enterDark()
 
-        val sp = s?.speedMps
-        speedChip.text = if (sp == null) "-- ${if (prefs.useMph) "mph" else "km/h"}"
-        else "${(if (prefs.useMph) sp * 2.23694f else sp * 3.6f).toInt()} ${if (prefs.useMph) "mph" else "km/h"}"
         val loc = s?.location
+        val road = s?.roadName
+        val area = s?.areaName
+        placeRoad.text = road ?: area ?: if (loc == null) "Finding your location..." else "Unnamed road"
+        val coords = if (loc != null) String.format(Locale.UK, "%.4f, %.4f", loc.latitude, loc.longitude) else null
+        placeArea.text = listOfNotNull(if (road != null) area else null, coords).joinToString(" · ")
+        qualityChip.text = (if (prefs.quality == "4k") "4K" else prefs.quality) + (if (s?.dualActive == true) " · 2 cams" else "")
         gpsChip.text = if (loc == null) "No GPS" else "GPS ±${loc.accuracy.toInt()} m"
         gpsChip.setTextColor(if (loc == null) 0xFFFFB547.toInt() else 0xFF3DDC97.toInt())
 
         if (now - lastStorageCheck > 5000) {
             lastStorageCheck = now
             val usedGb = store.usedBytes() / 1e9
-            storageText = String.format(Locale.UK, "%.1f / %d GB", usedGb, prefs.storageGb)
+            val batt = (getSystemService(BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            storageText = String.format(Locale.UK, "%.1f / %d GB  ·  %d%%", usedGb, prefs.storageGb, batt)
         }
         storageChip.text = storageText
 

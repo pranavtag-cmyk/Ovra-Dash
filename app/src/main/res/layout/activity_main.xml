@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Glass HUD: full-screen road view with frosted glass controls -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -8,8 +9,10 @@
     <TextureView
         android:id="@+id/preview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center" />
+        android:layout_height="match_parent" />
+
+    <View android:layout_width="match_parent" android:layout_height="90dp" android:layout_gravity="top" android:background="@drawable/scrim_top" />
+    <View android:layout_width="match_parent" android:layout_height="150dp" android:layout_gravity="bottom" android:background="@drawable/scrim_bottom" />
 
     <TextView
         android:id="@+id/idleText"
@@ -18,70 +21,115 @@
         android:layout_gravity="center"
         android:gravity="center"
         android:lineSpacingExtra="4dp"
-        android:text="Ready\nPlug into the car charger or press Record"
-        android:textColor="#9EA3B2"
+        android:text="Ready\nPlug into the car charger or press record"
+        android:textColor="#C9CCD6"
         android:textSize="16sp" />
 
-    <!-- top bar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="12dp">
-
-        <TextView style="@style/Chip" android:text="Ovra Dash" android:textStyle="bold" />
-        <TextView android:id="@+id/modeChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="STANDBY" />
-        <TextView android:id="@+id/speedChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="-- mph" android:textColor="#FFD666" />
-        <TextView android:id="@+id/gpsChip" style="@style/Chip" android:layout_marginStart="8dp" android:text="GPS" />
-        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
-        <TextView android:id="@+id/storageChip" style="@style/Chip" android:text="" />
-    </LinearLayout>
-
-    <!-- right controls -->
-    <ScrollView
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="end"
-        android:layout_marginTop="50dp"
-        android:fillViewport="true"
-        android:scrollbars="none">
+    <!-- top: status chips -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingEnd="14dp"
-        android:paddingBottom="12dp">
+        android:layout_gravity="top|start"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical">
 
-        <Button
-            android:id="@+id/btnRecord"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:background="@drawable/rec_bg"
-            android:text="REC"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <Button android:id="@+id/btnSave" style="@style/SideButton" android:layout_marginTop="14dp" android:text="Save clip" />
-        <Button android:id="@+id/btnGuard" style="@style/SideButton" android:text="Parking guard" />
-        <Button android:id="@+id/btnSentry" style="@style/SideButton" android:text="Sentry: OFF" />
-        <Button android:id="@+id/btnSecurity" style="@style/SideButton" android:text="Security: ON" />
-        <Button android:id="@+id/btnDark" style="@style/SideButton" android:text="Screen off" />
-        <Button android:id="@+id/btnClips" style="@style/SideButton" android:text="Clips" />
-        <Button android:id="@+id/btnSettings" style="@style/SideButton" android:text="Settings" />
+            <TextView android:id="@+id/modeChip" style="@style/GlassChip" android:text="STANDBY" android:textStyle="bold" android:fontFamily="monospace" />
+            <TextView android:id="@+id/qualityChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="1080p" />
+            <TextView android:id="@+id/gpsChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="No GPS" />
+            <TextView android:id="@+id/storageChip" style="@style/GlassChip" android:layout_marginStart="8dp" android:text="" />
+            <Button
+                android:id="@+id/btnDark"
+                style="@style/GlassChip"
+                android:layout_marginStart="8dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:drawableStart="@drawable/ic_moon"
+                android:text="Screen off"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/messageText"
+            style="@style/GlassChip"
+            android:layout_marginTop="8dp"
+            android:maxWidth="520dp"
+            android:textColor="#FFD08A"
+            android:visibility="gone" />
     </LinearLayout>
-    </ScrollView>
 
-    <TextView
-        android:id="@+id/messageText"
-        style="@style/Chip"
+    <!-- bottom-left: where you are (road + area), instead of speed -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:layout_margin="12dp"
-        android:maxWidth="520dp"
-        android:visibility="gone" />
+        android:layout_marginStart="22dp"
+        android:layout_marginBottom="20dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/placeRoad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_pin"
+            android:drawablePadding="8dp"
+            android:gravity="center_vertical"
+            android:maxWidth="460dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="6"
+            android:text="Finding your location..."
+            android:textColor="#FFFFFF"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/placeArea"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="30dp"
+            android:layout_marginTop="2dp"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="6"
+            android:textColor="#C9CCD6"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- right: glass dock -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="18dp"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <Button android:id="@+id/btnSave" style="@style/DockButton" android:layout_marginTop="0dp" android:drawableTop="@drawable/ic_save" android:text="Save" />
+        <Button android:id="@+id/btnGuard" style="@style/DockButton" android:drawableTop="@drawable/ic_shield" android:text="Guard" />
+        <Button android:id="@+id/btnSentry" style="@style/DockButton" android:drawableTop="@drawable/ic_eye" android:text="Sentry" />
+        <Button android:id="@+id/btnSecurity" style="@style/DockButton" android:drawableTop="@drawable/ic_lock" android:text="Security" />
+        <Button android:id="@+id/btnClips" style="@style/DockButton" android:drawableTop="@drawable/ic_clips" android:text="Clips" />
+        <Button android:id="@+id/btnSettings" style="@style/DockButton" android:drawableTop="@drawable/ic_gear" android:text="Settings" />
+    </LinearLayout>
+
+    <!-- record / stop -->
+    <ImageButton
+        android:id="@+id/btnRecord"
+        android:layout_width="78dp"
+        android:layout_height="78dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="18dp"
+        android:background="@drawable/rec_ring"
+        android:contentDescription="Start recording"
+        android:scaleType="center"
+        android:src="@drawable/rec_inner_dot" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -89,7 +137,7 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="6dp"
         android:text="Coded by Pranav Tagadpallewar"
-        android:textColor="#66FFFFFF"
+        android:textColor="#59FFFFFF"
         android:textSize="10sp" />
 
     <!-- dark screen: AMOLED black (pixels off) with just a status light; tap to wake -->

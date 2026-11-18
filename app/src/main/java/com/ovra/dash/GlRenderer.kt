@@ -257,13 +257,13 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
 
             if (encoderEgl != EGL14.EGL_NO_SURFACE) {
                 EGL14.eglMakeCurrent(display, encoderEgl, encoderEgl, context)
-                drawScene(videoWidth, videoHeight)
+                drawScene(videoWidth, videoHeight, preview = false)
                 EGLExt.eglPresentationTimeANDROID(display, encoderEgl, ts)
                 EGL14.eglSwapBuffers(display, encoderEgl)
             }
             if (previewEgl != EGL14.EGL_NO_SURFACE) {
                 EGL14.eglMakeCurrent(display, previewEgl, previewEgl, context)
-                drawScene(previewW, previewH)
+                drawScene(previewW, previewH, preview = true)
                 EGL14.eglSwapBuffers(display, previewEgl)
             }
         } catch (e: Exception) {
@@ -322,30 +322,51 @@ class GlRenderer(private val videoWidth: Int, private val videoHeight: Int) {
     /** Forget the reference images (e.g. when the guard is re-armed). */
     fun resetMotion() = handler.post { prevRear = null; prevFront = null }
 
-    private fun drawScene(w: Int, h: Int) {
+    /**
+     * Video: the full 16:9 frame with the cabin inset and the info bar.
+     * Preview (screen): fills the 20:9 screen edge to edge (trims a little top and bottom),
+     * no info bar (the app shows it), cabin inset placed clear of the app's buttons.
+     */
+    private fun drawScene(w: Int, h: Int, preview: Boolean) {
         GLES20.glViewport(0, 0, w, h)
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        // camera image
+        // camera image (centre-cropped on a wider screen)
+        var vx = 0; var vy = 0; var vw = w; var vh = h
+        if (preview && w * 9 > h * 16) {
+            vh = w * 9 / 16
+            vy = (h - vh) / 2
+        }
+        GLES20.glViewport(vx, vy, vw, vh)
         GLES20.glUseProgram(oesProgram)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex)
         drawQuad(oesProgram, fullQuad, texMatrix)
+        GLES20.glViewport(0, 0, w, h)
 
-        // cabin camera inset (top-right corner, 16:9, 30% of the width)
+        // cabin camera inset
         if (showFront && frontReady) {
-            val iw = (w * 0.30f).toInt()
-            val ih = iw * 9 / 16
-            val margin = (w * 0.015f).toInt()
-            GLES20.glViewport(w - iw - margin, h - ih - margin, iw, ih)
+            if (preview) {
+                // bottom, right of centre, left of the record button
+                val iw = (w * 0.20f).toInt()
+                val ih = iw * 9 / 16
+                val right = (w * 0.775f).toInt()
+                GLES20.glViewport(right - iw, (h * 0.06f).toInt(), iw, ih)
+            } else {
+                // recorded video: top-right corner, 30% of the width
+                val iw = (w * 0.30f).toInt()
+                val ih = iw * 9 / 16
+                val margin = (w * 0.015f).toInt()
+                GLES20.glViewport(w - iw - margin, h - ih - margin, iw, ih)
+            }
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, frontTex)
             drawQuad(oesProgram, fullQuad, frontMatrix)
             GLES20.glViewport(0, 0, w, h)
         }
 
-        // overlay bar
-        if (hasOverlay) {
+        // info bar (recorded video only)
+        if (hasOverlay && !preview) {
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
             GLES20.glUseProgram(texProgram)
