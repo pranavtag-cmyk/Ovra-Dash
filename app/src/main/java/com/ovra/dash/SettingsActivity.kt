@@ -24,6 +24,13 @@ class SettingsActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
 
     class Fragment : PreferenceFragmentCompat() {
+        override fun onResume() {
+            super.onResume()
+            findPreference<Preference>("welcome_overlay")?.summary =
+                if (android.provider.Settings.canDrawOverlays(requireContext())) "Allowed - the video can appear even when another app is open"
+                else "Not allowed yet - tap to allow. Without it, the video only appears when the screen is off or Ovra Dash is open"
+        }
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.settings, rootKey)
             val prefs = Prefs(requireContext())
@@ -48,6 +55,17 @@ class SettingsActivity : AppCompatActivity() {
                             else Security.require(act, "Remove PIN") { prefs.clearPin(); updatePin(); Toast.makeText(act, "PIN removed", Toast.LENGTH_SHORT).show() }
                         }.show()
                 } else Security.setNewPin(act) { updatePin() }
+                true
+            }
+
+            findPreference<Preference>("welcome_preview")?.setOnPreferenceClickListener {
+                startActivity(android.content.Intent(requireContext(), WelcomeActivity::class.java)); true
+            }
+            findPreference<Preference>("welcome_overlay")?.setOnPreferenceClickListener {
+                try {
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + requireContext().packageName)))
+                } catch (_: Exception) {}
                 true
             }
 

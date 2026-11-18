@@ -41,6 +41,10 @@ class Prefs(context: Context) {
     val guardMinBattery get() = int("guard_min_battery", 20)
     val guardTexts get() = securityEnabled && sp.getBoolean("guard_texts", false)
 
+    // welcome video when the car charger is connected
+    val welcomeEnabled get() = sp.getBoolean("welcome_enabled", true)
+    val welcomeSound get() = sp.getBoolean("welcome_sound", true)
+
     // sentry mode - the parked warning light. Completely separate from security.
     var sentryOn: Boolean
         get() = sp.getBoolean("sentry_on", false)

@@ -21,6 +21,7 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="false"
@@ -43,6 +44,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".WelcomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.OvraDash"
+            android:screenOrientation="sensorLandscape"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.ovra.dash.welcome"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
         <activity android:name=".ClipsActivity" android:exported="false" />
         <activity android:name=".PlayerActivity" android:exported="false" android:theme="@style/Theme.OvraDash"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />

@@ -88,6 +88,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
     private var lastCrashAt = 0L
     private var gpsLog: FileWriter? = null
     private var stopRunnable: Runnable? = null
+    private var lastPowerOff = 0L
     private var armRunnable: Runnable? = null
 
     // guard detection
@@ -684,9 +685,13 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
                 Intent.ACTION_POWER_CONNECTED -> {
                     stopRunnable?.let { main.removeCallbacks(it) }
                     stopRunnable = null
+                    // welcome video - but not for a brief unplug/replug or a loose cable
+                    val wasDriving = mode == Mode.DRIVING
+                    if (prefs.welcomeEnabled && !wasDriving && System.currentTimeMillis() - lastPowerOff > 60_000) showWelcome()
                     if (prefs.autoStart && mode != Mode.DRIVING && mode != Mode.GUARD) startDriving()
                 }
                 Intent.ACTION_POWER_DISCONNECTED -> {
+                    lastPowerOff = System.currentTimeMillis()
                     if (mode == Mode.DRIVING) {
                         val r = Runnable { stopDriving(toGuard = true) }
                         stopRunnable = r
@@ -698,6 +703,32 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
                 }
             }
         }
+    }
+
+    /**
+     * Plays the start-up video. Android only lets an app pop up over other apps if it has
+     * "Display over other apps"; otherwise a full-screen notification opens it (works when the
+     * screen is off or locked, which is the usual case when getting into the car).
+     */
+    fun showWelcome() {
+        val i = Intent(this, WelcomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY)
+        val canPopUp = uiListener != null || android.provider.Settings.canDrawOverlays(this)
+        if (canPopUp) {
+            try { startActivity(i); return } catch (_: Exception) {}
+        }
+        val pi = PendingIntent.getActivity(this, 20, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(this, CH_ALERT)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle("Welcome, Pran")
+            .setContentText("Ovra Dash is recording")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .setTimeoutAfter(15_000)
+            .setContentIntent(pi)
+            .setFullScreenIntent(pi, true)
+            .build()
+        try { getSystemService(NotificationManager::class.java).notify(WELCOME_ID, n) } catch (_: Exception) {}
     }
 
     private fun isCharging(): Boolean {
@@ -771,6 +802,7 @@ class DashService : Service(), SegmentRecorder.Listener, SensorEventListener, Lo
         private const val CH_ALERT = "alerts"
         private const val NOTIF_ID = 1
         private const val ALERT_ID = 2
+        private const val WELCOME_ID = 4
 
         @Volatile var instance: DashService? = null
             private set
